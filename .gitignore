@@ -1,0 +1,32 @@
+# Runtime data — never commit
+data/
+logs/
+
+# User-specific config (may contain personal info)
+config/budget_policy.json
+config/accounts.json
+
+# Python
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.egg-info/
+dist/
+build/
+.eggs/
+*.egg
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/settings.json
+.idea/
+*.swp

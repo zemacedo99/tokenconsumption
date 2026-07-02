@@ -1,0 +1,62 @@
+{
+  "version": "2.0.0",
+  "updated_at": "2026-07-02",
+  "pricing_source_note": "Standard Anthropic API pricing as provided by the user on 2026-07-02, in USD per million tokens. Sonnet 5 is introductory pricing through 2026-08-31. Verify against https://www.anthropic.com/pricing before relying on cost figures. Unknown local model names are intentionally left unpriced.",
+  "currency": "USD",
+  "aliases": {
+    "claude-haiku-4-5-20251001": "claude-haiku-4-5"
+  },
+  "models": {
+    "claude-opus-4-8": {
+      "display_name": "Claude Opus 4.8",
+      "rates_per_mtoken": {
+        "input": 5.00,
+        "output": 25.00,
+        "cache_read": 0.50,
+        "cache_write_5m": 6.25,
+        "cache_write_1h": 10.00
+      }
+    },
+    "claude-opus-4-7": {
+      "display_name": "Claude Opus 4.7",
+      "rates_per_mtoken": {
+        "input": 5.00,
+        "output": 25.00,
+        "cache_read": 0.50,
+        "cache_write_5m": 6.25,
+        "cache_write_1h": 10.00
+      }
+    },
+    "claude-sonnet-5": {
+      "display_name": "Claude Sonnet 5",
+      "rates_per_mtoken": {
+        "input": 2.00,
+        "output": 10.00,
+        "cache_read": 0.20,
+        "cache_write_5m": 2.50,
+        "cache_write_1h": 4.00
+      },
+      "note": "Introductory pricing through 2026-08-31."
+    },
+    "claude-sonnet-4-6": {
+      "display_name": "Claude Sonnet 4.6",
+      "rates_per_mtoken": {
+        "input": 3.00,
+        "output": 15.00,
+        "cache_read": 0.30,
+        "cache_write_5m": 3.75,
+        "cache_write_1h": 6.00
+      }
+    },
+    "claude-haiku-4-5": {
+      "display_name": "Claude Haiku 4.5",
+      "rates_per_mtoken": {
+        "input": 1.00,
+        "output": 5.00,
+        "cache_read": 0.10,
+        "cache_write_5m": 1.25,
+        "cache_write_1h": 2.00
+      }
+    }
+  }
+}

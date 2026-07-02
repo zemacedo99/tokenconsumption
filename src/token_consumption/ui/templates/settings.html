@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Settings</h1>
+{% if saved %}<div class="ok">✓ Settings saved to config/budget_policy.json</div>{% endif %}
+<form method="post" action="/settings" class="settings">
+  <label>Monthly budget value
+    <input type="number" step="any" name="monthly_budget_value" value="{{ cfg.monthly_budget_value }}"></label>
+  <label>Monthly budget currency
+    <input type="text" name="monthly_budget_currency" value="{{ cfg.monthly_budget_currency }}"></label>
+  <label>Safety threshold value
+    <input type="number" step="any" name="safety_threshold_value" value="{{ cfg.safety_threshold_value }}"></label>
+  <label>Threshold currency
+    <input type="text" name="safety_threshold_currency" value="{{ cfg.safety_threshold_currency }}"></label>
+  <label>Warn at % of threshold
+    <input type="number" step="any" name="warn_at_percentage_of_threshold" value="{{ cfg.warn_at_percentage_of_threshold }}"></label>
+  <label>Manual FX rate (USD → EUR)
+    <input type="number" step="any" name="usd_to_eur" value="{{ cfg.fx_rates.USD_to_EUR }}"></label>
+  <label>Account / profile display name
+    <input type="text" name="account_profile_name" value="{{ cfg.account_profile_name }}"></label>
+  <button type="submit">Save</button>
+</form>
+<p class="muted small">Saved to <code>config/budget_policy.json</code> (gitignored, local only).
+You can also edit that file directly or use <code>tc config set &lt;key&gt; &lt;value&gt;</code>.</p>
+{% endblock %}

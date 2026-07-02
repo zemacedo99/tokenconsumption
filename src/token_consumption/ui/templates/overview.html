@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Overview</h1>
+<p class="muted">Account profile: <strong>{{ ov.account }}</strong></p>
+
+{% if ov.unpriced_models %}
+<div class="warn">⚠️ Unpriced / unknown models in data: <strong>{{ ov.unpriced_models|join(', ') }}</strong>.
+Their cost is not counted. Add rates in <code>config/pricing.json</code>.</div>
+{% endif %}
+
+<div class="progress-wrap">
+  <div class="progress-label">
+    Monthly budget: <strong>€{{ '%.2f'|format(ov.month_eur or 0) }}</strong> / €{{ '%.0f'|format(ov.budget_eur) }}
+    ({{ ov.pct }}%)
+  </div>
+  <div class="progress-bar">
+    <div class="progress-fill {{ 'over' if ov.pct >= 100 else ('near' if ov.pct >= 70 else '') }}"
+         style="width: {{ [ov.pct, 100]|min }}%"></div>
+  </div>
+</div>
+
+<div class="cards">
+  <div class="card"><div class="k">Today</div><div class="v">€{{ '%.2f'|format(ov.today_eur or 0) }}</div></div>
+  <div class="card"><div class="k">This month</div><div class="v">€{{ '%.2f'|format(ov.month_eur or 0) }}</div></div>
+  <div class="card"><div class="k">Latest session</div><div class="v">€{{ '%.2f'|format(ov.session_eur or 0) }}</div></div>
+  <div class="card"><div class="k">Remaining budget</div>
+    <div class="v {{ 'danger' if (ov.remaining_eur or 0) < 0 else '' }}">€{{ '%.2f'|format(ov.remaining_eur or 0) }}</div></div>
+</div>
+
+<p class="muted small">Pricing table v{{ ov.pricing_version }} (updated {{ ov.pricing_updated }}).
+Costs are local estimates from your pricing table; official billing may differ. Token counts are exact.</p>
+{% endblock %}

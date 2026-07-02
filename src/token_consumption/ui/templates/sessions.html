@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Sessions <span class="muted small">(most recent 100)</span></h1>
+<table>
+  <thead><tr><th>Session</th><th>Project</th><th>Models</th><th>Date</th>
+    <th class="r">Turns</th><th class="r">Tokens</th><th class="r">Cost (€)</th></tr></thead>
+  <tbody>
+  {% for r in rows %}
+    <tr><td class="mono">{{ r.session_id[:8] }}</td><td>{{ r.project }}</td>
+        <td class="small">{{ r.models }}</td><td>{{ r.day }}</td>
+        <td class="r">{{ r.turns }}</td><td class="r">{{ '{:,}'.format(r.tokens) }}</td>
+        <td class="r">{{ ('%.2f'|format(r.eur)) if r.eur is not none else '—' }}</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

@@ -1,0 +1,50 @@
+# Task-type classifier: regex patterns matched against the user's prompt.
+# First match wins. Order matters — put more specific patterns first.
+# expected_output_tokens: rough median expected output; used by the estimator (phase 2+).
+
+task_types:
+  - name: read_only_qa
+    description: "Questions, lookups, explain-this, summarize"
+    patterns:
+      - "^(what|how|why|when|where|who|explain|describe|summarize|what is|what are|can you tell|tell me about)"
+      - "(\\?\\s*$)"
+      - "(explain|describe|summarize|overview|understand)"
+    expected_output_tokens: 800
+
+  - name: plan
+    description: "Planning, design, architecture, proposal — read-heavy, medium output"
+    patterns:
+      - "(plan|design|architect|propose|outline|strategy|roadmap|approach|think about|how should we)"
+    expected_output_tokens: 2000
+
+  - name: code_edit
+    description: "Single-file or small-scope code changes"
+    patterns:
+      - "(fix|implement|add|change|update|refactor|rename|move|delete|remove|edit|modify)"
+      - "(bug|error|issue|broken|failing|crash)"
+    expected_output_tokens: 1500
+
+  - name: refactor_wide
+    description: "Multi-file refactors, large restructuring"
+    patterns:
+      - "(refactor|restructure|reorganize|migrate|convert|rewrite|overhaul).*(all|every|entire|whole|across|codebase)"
+      - "(across.*(files|modules|codebase|project))"
+    expected_output_tokens: 4000
+
+  - name: debug_run
+    description: "Debugging with tool use, running commands, reading logs"
+    patterns:
+      - "(debug|diagnose|investigate|trace|reproduce|log|why is|why does|why isn)"
+      - "(run|execute|check|verify|test) (this|it|the)"
+    expected_output_tokens: 2500
+
+  - name: research
+    description: "Web search, multi-source synthesis, competitive analysis"
+    patterns:
+      - "(research|search|find|look up|survey|compare|benchmark|evaluate options|alternatives)"
+    expected_output_tokens: 3000
+
+default:
+  name: unknown
+  expected_output_tokens: 2000
+  confidence: low

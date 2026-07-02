@@ -1,0 +1,23 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "TokenConsumption Budget Policy",
+  "type": "object",
+  "properties": {
+    "version":                           { "type": "integer" },
+    "monthly_budget_value":              { "type": "number", "minimum": 0 },
+    "monthly_budget_currency":           { "type": "string" },
+    "safety_threshold_value":            { "type": "number", "minimum": 0 },
+    "safety_threshold_currency":         { "type": "string" },
+    "warn_at_percentage_of_threshold":   { "type": "number", "minimum": 0, "maximum": 100 },
+    "require_confirmation_above_threshold": { "type": "boolean" },
+    "recommend_cheaper_model_above_threshold": { "type": "boolean" },
+    "cheaper_model_suggestion":          { "type": ["string", "null"] },
+    "default_estimation_confidence":     { "type": "string", "enum": ["conservative", "balanced", "optimistic"] },
+    "account_profile_name":              { "type": "string" },
+    "privacy_mode":                      { "type": "string", "enum": ["metadata_only", "full"] },
+    "fx_rates":                          { "type": "object" },
+    "data_dir":                          { "type": ["string", "null"] },
+    "pricing_json_path":                 { "type": ["string", "null"] }
+  },
+  "required": ["monthly_budget_value", "safety_threshold_value"]
+}

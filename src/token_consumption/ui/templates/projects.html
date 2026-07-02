@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Projects</h1>
+<table>
+  <thead><tr><th>Project / repo</th><th class="r">Turns</th><th class="r">Tokens</th><th class="r">Cost (€)</th></tr></thead>
+  <tbody>
+  {% for r in rows %}
+    <tr><td>{{ r.project }}</td><td class="r">{{ '{:,}'.format(r.turns) }}</td>
+        <td class="r">{{ '{:,}'.format(r.tokens) }}</td>
+        <td class="r">{{ ('%.2f'|format(r.eur)) if r.eur is not none else '—' }}</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

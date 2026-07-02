@@ -1,0 +1,25 @@
+{
+  "$schema": "./schemas/budget_policy.schema.json",
+  "version": 1,
+  "_comment": "Copy this file to budget_policy.json and edit it. budget_policy.json is gitignored.",
+  "monthly_budget_value": 1000,
+  "monthly_budget_currency": "USD",
+  "safety_threshold_value": 20,
+  "safety_threshold_currency": "EUR",
+  "warn_at_percentage_of_threshold": 70,
+  "require_confirmation_above_threshold": true,
+  "recommend_cheaper_model_above_threshold": true,
+  "cheaper_model_suggestion": "claude-haiku-4-5-20251001",
+  "default_estimation_confidence": "conservative",
+  "account_profile_name": "default",
+  "privacy_mode": "metadata_only",
+  "fx_rates": {
+    "USD_to_EUR": 0.92,
+    "updated_at": "2026-07-01",
+    "_comment": "Update this manually when FX rates change significantly."
+  },
+  "data_dir": null,
+  "_data_dir_comment": "null = use <tool-root>/data/. Set to absolute path to store data elsewhere.",
+  "pricing_json_path": null,
+  "_pricing_json_path_comment": "null = use <tool-root>/config/pricing.json."
+}

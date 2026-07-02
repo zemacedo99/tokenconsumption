@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Raw logs <span class="muted small">(metadata only — no prompt/output content is stored)</span></h1>
+<table class="dense">
+  <thead><tr><th>Timestamp</th><th>Session</th><th>Project</th><th>Role</th><th>Model</th>
+    <th class="r">In</th><th class="r">Out</th><th class="r">Cache R</th><th class="r">Cache W</th><th class="r">€</th></tr></thead>
+  <tbody>
+  {% for r in rows %}
+    <tr><td class="small">{{ r.ts }}</td><td class="mono">{{ r.session }}</td>
+        <td class="small">{{ r.project }}</td><td>{{ r.role }}</td><td class="small">{{ r.model }}</td>
+        <td class="r">{{ '{:,}'.format(r['in']) }}</td><td class="r">{{ '{:,}'.format(r.out) }}</td>
+        <td class="r">{{ '{:,}'.format(r.cache_r) }}</td><td class="r">{{ '{:,}'.format(r.cache_w) }}</td>
+        <td class="r">{{ ('%.4f'|format(r.eur)) if r.eur is not none else '—' }}</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endblock %}
