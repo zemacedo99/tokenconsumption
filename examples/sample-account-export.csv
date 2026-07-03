@@ -1,0 +1,4 @@
+period,model,description,amount,currency
+2026-07-01,claude-opus-4-8,Claude Opus 4.8 Usage - Input Tokens,100.00,USD
+2026-07-01,claude-opus-4-8,Claude Opus 4.8 Usage - Output Tokens,40.00,USD
+2026-07-02,claude-opus-4-7,Claude Opus 4.7 Usage - Input Tokens,2.50,USD

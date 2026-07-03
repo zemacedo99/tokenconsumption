@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Reconcile: local vs official/manual</h1>
+<p class="muted small">
+  Local cost is computed from token counts (exact) × your pricing table (configurable — may drift
+  from official billing). Official/manual cost comes from the Admin API or a manual import,
+  when available for that period.
+</p>
+
+{% if prefer_official %}
+<div class="ok small">prefer_official_account_costs is ON — Overview/status use official/manual cost when available.</div>
+{% else %}
+<div class="muted small">prefer_official_account_costs is OFF — Overview/status always show the local estimate.
+  Enable in Settings to prefer official data when present.</div>
+{% endif %}
+
+<table>
+  <thead><tr><th>Month</th><th class="r">Local (€)</th><th class="r">Reference (€)</th>
+    <th>Source</th><th class="r">Diff %</th><th>Note</th></tr></thead>
+  <tbody>
+  {% for r in rows %}
+    <tr>
+      <td>{{ r.period }}</td>
+      <td class="r">{{ ('%.2f'|format(r.local_eur)) if r.local_eur is not none else '—' }}</td>
+      <td class="r">{{ ('%.2f'|format(r.reference_eur)) if r.reference_eur is not none else '—' }}</td>
+      <td class="small">{{ r.reference_source or 'local estimate' }}</td>
+      <td class="r">{{ ('%.1f'|format(r.diff_pct)) if r.diff_pct is not none else '—' }}</td>
+      <td class="small">{{ r.suggestion }}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

@@ -6,7 +6,7 @@ from pathlib import Path
 
 from . import config as cfg_mod
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 DDL = """
 -- ── turns ────────────────────────────────────────────────────────────────────
@@ -92,11 +92,90 @@ CREATE TABLE IF NOT EXISTS meta (
     key     TEXT PRIMARY KEY,
     value   TEXT NOT NULL
 );
+
+-- ── account_usage_reports ───────────────────────────────────────────────────
+-- Usage/cost rows from sources OTHER than local JSONL: official Admin API
+-- reports or manually imported billing exports. Kept separate from `turns`
+-- (which is exact per-turn local data) so sources are never conflated.
+CREATE TABLE IF NOT EXISTS account_usage_reports (
+    id                      INTEGER PRIMARY KEY AUTOINCREMENT,
+    source                  TEXT NOT NULL,   -- anthropic_admin_api | manual_account_import
+    report_start            TEXT,
+    report_end              TEXT,
+    account_profile         TEXT NOT NULL DEFAULT 'default',
+    organization_id         TEXT,
+    workspace_id            TEXT,
+    user_email_hash         TEXT,            -- sha256 of email, never the raw email
+    model                   TEXT,
+    service                 TEXT,            -- e.g. tokens | web_search | code_execution
+    input_tokens            INTEGER,
+    output_tokens           INTEGER,
+    cache_read_tokens       INTEGER,
+    cache_write_tokens      INTEGER,
+    total_tokens            INTEGER,
+    cost_value              REAL,
+    cost_currency           TEXT NOT NULL DEFAULT 'USD',
+    raw_source_reference    TEXT,            -- filename or endpoint, never raw content
+    imported_at             TEXT NOT NULL,
+    confidence              TEXT NOT NULL DEFAULT 'unknown'  -- exact|estimated|manually_entered|unknown
+);
+
+-- Dedup via expression index: SQLite treats NULL != NULL in a plain UNIQUE
+-- constraint, which would defeat dedup for rows with no workspace_id/model
+-- (the common case). COALESCE to '' makes NULLs compare equal.
+CREATE UNIQUE INDEX IF NOT EXISTS ux_acct_usage_dedupe ON account_usage_reports(
+    source, COALESCE(report_start,''), COALESCE(report_end,''),
+    COALESCE(model,''), COALESCE(service,''), COALESCE(workspace_id,''),
+    COALESCE(raw_source_reference,'')
+);
+
+CREATE INDEX IF NOT EXISTS idx_acct_usage_period  ON account_usage_reports(report_start, report_end);
+CREATE INDEX IF NOT EXISTS idx_acct_usage_source  ON account_usage_reports(source);
+CREATE INDEX IF NOT EXISTS idx_acct_usage_model   ON account_usage_reports(model);
+
+-- ── account_balance_snapshots ───────────────────────────────────────────────
+-- Point-in-time plan/budget/credits snapshots. Mostly manually entered since
+-- Pro/Max usage progress has no documented API.
+CREATE TABLE IF NOT EXISTS account_balance_snapshots (
+    id                      INTEGER PRIMARY KEY AUTOINCREMENT,
+    source                  TEXT NOT NULL,   -- manual_account_import | anthropic_admin_api
+    captured_at             TEXT NOT NULL,
+    account_profile         TEXT NOT NULL DEFAULT 'default',
+    plan_name               TEXT,
+    monthly_budget_value    REAL,
+    monthly_budget_currency TEXT,
+    usage_credits_total     REAL,
+    usage_credits_remaining REAL,
+    usage_credits_used      REAL,
+    reset_date              TEXT,
+    notes                   TEXT,            -- free text the user typed; never file/image content
+    confidence              TEXT NOT NULL DEFAULT 'manually_entered'
+);
+
+CREATE INDEX IF NOT EXISTS idx_acct_balance_captured ON account_balance_snapshots(captured_at);
+
+-- ── data_sources ─────────────────────────────────────────────────────────────
+-- Tracks the health/status of each data source feeding TokenConsumption.
+CREATE TABLE IF NOT EXISTS data_sources (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    source_name         TEXT NOT NULL UNIQUE,  -- local_claude_code_jsonl | anthropic_admin_api | manual_account_import
+    source_type         TEXT NOT NULL,         -- local | api | manual
+    enabled             INTEGER NOT NULL DEFAULT 1,
+    last_sync_at        TEXT,
+    last_sync_status    TEXT,                  -- ok | error | never_run
+    last_error_message  TEXT
+);
 """
 
-MIGRATIONS = [
-    # v1 → baseline (DDL above covers this)
-]
+MIGRATIONS = {
+    # Keyed by the schema_version each migration produces (NOT list position) —
+    # applying by fixed target version, rather than by relative list index, is
+    # what makes running init_db() repeatedly idempotent.
+    # v1 → v2: account_usage_reports, account_balance_snapshots, data_sources.
+    # CREATE TABLE IF NOT EXISTS in the DDL above already applies these to
+    # existing databases idempotently, so this migration is a no-op marker.
+    2: "SELECT 1;",
+}
 
 
 def _db_path() -> Path:
@@ -124,20 +203,26 @@ def connection(db_path: Path | None = None):
 
 
 def init_db(db_path: Path | None = None) -> Path:
-    """Create schema and apply any pending migrations. Idempotent."""
+    """
+    Create schema and apply any pending migrations. Idempotent — safe to call
+    on every startup. Migrations are keyed by the fixed schema_version they
+    produce, so re-running never re-bumps the version past SCHEMA_VERSION.
+    """
     path = db_path or _db_path()
     with connection(path) as con:
         con.executescript(DDL)
 
         current = _schema_version(con)
-        for i, migration_sql in enumerate(MIGRATIONS, start=current + 1):
-            con.executescript(migration_sql)
-            con.execute(
-                "INSERT OR REPLACE INTO meta(key, value) VALUES ('schema_version', ?)",
-                (str(i),)
-            )
+        for version in sorted(MIGRATIONS):
+            if version > current:
+                con.executescript(MIGRATIONS[version])
+                con.execute(
+                    "INSERT OR REPLACE INTO meta(key, value) VALUES ('schema_version', ?)",
+                    (str(version),)
+                )
+                current = version
 
-        if current == 0:
+        if current < SCHEMA_VERSION:
             con.execute(
                 "INSERT OR REPLACE INTO meta(key, value) VALUES ('schema_version', ?)",
                 (str(SCHEMA_VERSION),)
@@ -206,4 +291,80 @@ def get_last_turn(con: sqlite3.Connection, session_id: str | None = None) -> sql
         """, (session_id,)).fetchone()
     return con.execute("""
         SELECT * FROM turns WHERE role='assistant' ORDER BY ts DESC LIMIT 1
+    """).fetchone()
+
+
+# ── data_sources helpers ──────────────────────────────────────────────────────
+
+def record_source_sync(con: sqlite3.Connection, source_name: str, source_type: str,
+                       status: str, error_message: str | None = None,
+                       synced_at: str | None = None) -> None:
+    """Upsert a data_sources row after a sync attempt (success or failure)."""
+    from datetime import datetime, timezone
+    ts = synced_at or datetime.now(timezone.utc).isoformat()
+    con.execute("""
+        INSERT INTO data_sources (source_name, source_type, enabled, last_sync_at, last_sync_status, last_error_message)
+        VALUES (?, ?, 1, ?, ?, ?)
+        ON CONFLICT(source_name) DO UPDATE SET
+            last_sync_at=excluded.last_sync_at,
+            last_sync_status=excluded.last_sync_status,
+            last_error_message=excluded.last_error_message
+    """, (source_name, source_type, ts, status, error_message))
+
+
+def get_data_sources(con: sqlite3.Connection) -> list[sqlite3.Row]:
+    return con.execute("SELECT * FROM data_sources ORDER BY source_name").fetchall()
+
+
+# ── account_usage_reports helpers ─────────────────────────────────────────────
+
+def insert_account_usage_row(con: sqlite3.Connection, row: dict) -> bool:
+    """Insert one normalized account usage row. Returns True if a new row was added."""
+    before = con.total_changes
+    con.execute("""
+        INSERT OR IGNORE INTO account_usage_reports (
+            source, report_start, report_end, account_profile, organization_id,
+            workspace_id, user_email_hash, model, service,
+            input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, total_tokens,
+            cost_value, cost_currency, raw_source_reference, imported_at, confidence
+        ) VALUES (:source, :report_start, :report_end, :account_profile, :organization_id,
+            :workspace_id, :user_email_hash, :model, :service,
+            :input_tokens, :output_tokens, :cache_read_tokens, :cache_write_tokens, :total_tokens,
+            :cost_value, :cost_currency, :raw_source_reference, :imported_at, :confidence)
+    """, row)
+    return con.total_changes > before
+
+
+def get_official_cost_for_period(con: sqlite3.Connection, start: str, end: str,
+                                 source: str = "anthropic_admin_api") -> float | None:
+    row = con.execute("""
+        SELECT SUM(cost_value) AS s FROM account_usage_reports
+        WHERE source=? AND report_start >= ? AND report_start < ?
+    """, (source, start, end)).fetchone()
+    return row["s"] if row else None
+
+
+def get_manual_cost_for_period(con: sqlite3.Connection, start: str, end: str) -> float | None:
+    return get_official_cost_for_period(con, start, end, source="manual_account_import")
+
+
+# ── account_balance_snapshots helpers ─────────────────────────────────────────
+
+def insert_balance_snapshot(con: sqlite3.Connection, row: dict) -> None:
+    con.execute("""
+        INSERT INTO account_balance_snapshots (
+            source, captured_at, account_profile, plan_name,
+            monthly_budget_value, monthly_budget_currency,
+            usage_credits_total, usage_credits_remaining, usage_credits_used,
+            reset_date, notes, confidence
+        ) VALUES (:source, :captured_at, :account_profile, :plan_name,
+            :monthly_budget_value, :monthly_budget_currency,
+            :usage_credits_total, :usage_credits_remaining, :usage_credits_used,
+            :reset_date, :notes, :confidence)
+    """, row)
+
+
+def get_latest_balance_snapshot(con: sqlite3.Connection) -> sqlite3.Row | None:
+    return con.execute("""
+        SELECT * FROM account_balance_snapshots ORDER BY captured_at DESC LIMIT 1
     """).fetchone()

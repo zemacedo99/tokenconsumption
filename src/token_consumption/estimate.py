@@ -233,6 +233,50 @@ def save_estimate(est: Estimate, session_id: str | None = None,
     return est_uuid
 
 
+def calibration_summary(period_start: str, period_end: str, db_path: Path | None = None) -> dict | None:
+    """
+    Compare local computed cost against official/manual account data for a
+    period, and suggest (but never apply) a calibration factor.
+
+    Returns None if no official/manual data exists for the period — there is
+    nothing to calibrate against. Never modifies pricing.json.
+    """
+    with db_mod.connection(db_path) as con:
+        local_cost = con.execute("""
+            SELECT SUM(cost_total) AS s FROM turns
+            WHERE substr(ts,1,10) >= ? AND substr(ts,1,10) < ?
+        """, (period_start, period_end)).fetchone()["s"]
+
+        official_cost = db_mod.get_official_cost_for_period(con, period_start, period_end)
+        manual_cost = db_mod.get_manual_cost_for_period(con, period_start, period_end)
+
+    reference_cost = official_cost if official_cost is not None else manual_cost
+    reference_label = "official Admin API" if official_cost is not None else (
+        "manual import" if manual_cost is not None else None
+    )
+
+    if reference_cost is None or local_cost is None or reference_cost == 0:
+        return None
+
+    diff_pct = (local_cost - reference_cost) / reference_cost * 100
+    direction = "higher" if diff_pct > 0 else "lower"
+    suggestion = (
+        f"Local estimate is {abs(diff_pct):.1f}% {direction} than {reference_label} cost "
+        f"for {period_start} to {period_end}. Consider reviewing config/pricing.json rates "
+        f"(not applied automatically)."
+    )
+
+    return {
+        "period_start": period_start,
+        "period_end": period_end,
+        "local_cost_usd": local_cost,
+        "reference_cost_usd": reference_cost,
+        "reference_source": reference_label,
+        "diff_pct": diff_pct,
+        "suggestion": suggestion,
+    }
+
+
 def format_estimate(est: Estimate) -> str:
     """Human-readable multi-line estimate for the CLI."""
     cost_str = f"€{est.est_cost_eur:.2f}" if est.est_cost_eur is not None else "unknown (unpriced)"

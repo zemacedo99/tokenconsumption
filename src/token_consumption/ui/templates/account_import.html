@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Import manual account export</h1>
+<p class="muted small">
+  Upload a CSV/JSON export you downloaded yourself from the Anthropic Console.
+  This is a local-only upload (stays on this machine) — nothing is sent anywhere.
+  Only token/cost metadata is imported; content-like columns are always rejected.
+</p>
+
+<form method="post" action="/account/import/preview" enctype="multipart/form-data">
+  <input type="file" name="upload" accept=".csv,.json" required>
+  <button type="submit">Preview</button>
+</form>
+
+{% if error %}<div class="warn">{{ error }}</div>{% endif %}
+
+{% if commit_result %}
+  {% if commit_result.ok %}
+  <div class="ok">✓ Imported {{ commit_result.imported }} of {{ commit_result.total_rows }} rows.</div>
+  {% else %}
+  <div class="warn">Import failed: {{ commit_result.errors|join(', ') }}</div>
+  {% endif %}
+{% endif %}
+
+{% if preview %}
+<h2>Preview</h2>
+<p>Format: {{ preview.format }} · Rows detected: {{ preview.total_rows }}</p>
+{% for w in preview.warnings %}<div class="warn small">{{ w }}</div>{% endfor %}
+
+<table class="dense">
+  <thead><tr>{% for f, col in preview.column_mapping.items() %}<th>{{ f }}{% if not col %} (missing){% endif %}</th>{% endfor %}</tr></thead>
+  <tbody>
+  {% for row in preview.sample_rows %}
+    <tr>{% for f, col in preview.column_mapping.items() %}<td>{{ row.get(col, '') if col else '' }}</td>{% endfor %}</tr>
+  {% endfor %}
+  </tbody>
+</table>
+
+<form method="post" action="/account/import/commit">
+  <input type="hidden" name="staged_path" value="{{ staged_path }}">
+  <button type="submit">Confirm import ({{ preview.total_rows }} rows)</button>
+</form>
+{% endif %}
+{% endblock %}

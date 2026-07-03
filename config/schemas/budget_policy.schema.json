@@ -17,7 +17,8 @@
     "privacy_mode":                      { "type": "string", "enum": ["metadata_only", "full"] },
     "fx_rates":                          { "type": "object" },
     "data_dir":                          { "type": ["string", "null"] },
-    "pricing_json_path":                 { "type": ["string", "null"] }
+    "pricing_json_path":                 { "type": ["string", "null"] },
+    "prefer_official_account_costs":     { "type": "boolean" }
   },
   "required": ["monthly_budget_value", "safety_threshold_value"]
 }

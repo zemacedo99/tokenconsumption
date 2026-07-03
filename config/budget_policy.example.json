@@ -21,5 +21,7 @@
   "data_dir": null,
   "_data_dir_comment": "null = use <tool-root>/data/. Set to absolute path to store data elsewhere.",
   "pricing_json_path": null,
-  "_pricing_json_path_comment": "null = use <tool-root>/config/pricing.json."
+  "_pricing_json_path_comment": "null = use <tool-root>/config/pricing.json.",
+  "prefer_official_account_costs": false,
+  "_prefer_official_account_costs_comment": "When true, status/UI use official Admin API or manual-import costs (when available for the period) instead of local pricing-table estimates."
 }

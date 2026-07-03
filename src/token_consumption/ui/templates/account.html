@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Account Data</h1>
+<p class="muted small">
+  Three independent sources, each clearly labeled. This app never scrapes Claude web pages,
+  never stores your password, and never reads browser cookies or session tokens.
+</p>
+
+<div class="cards">
+  {% for s in sources %}
+  <div class="card">
+    <div class="k">{{ s.source_name }}</div>
+    <div class="v small">{{ s.source_type }}</div>
+    <div class="small {{ 'ok-text' if s.last_sync_status=='ok' else ('muted' if s.last_sync_status=='never_run' else 'danger') }}">
+      {{ s.last_sync_status }}
+    </div>
+    <div class="small muted">last sync: {{ s.last_sync_at or '—' }}</div>
+    {% if s.last_error_message %}<div class="small danger">{{ s.last_error_message }}</div>{% endif %}
+  </div>
+  {% endfor %}
+</div>
+
+<p>
+  <a href="/account/connect">→ Connect official Admin API</a> &nbsp;|&nbsp;
+  <a href="/account/import">→ Import manual export</a> &nbsp;|&nbsp;
+  <a href="/account/reconcile">→ Reconcile local vs official</a>
+</p>
+
+<h2>Pro/Max plan usage (manual entry)</h2>
+<div class="warn">
+  Claude Pro/Max "Settings &gt; Usage" progress has <strong>no documented API</strong>.
+  This app does not automate login or scrape that page. Record it manually below if you want
+  to track it here — a screenshot path is stored as text only; the image itself is never saved.
+</div>
+
+{% if saved %}<div class="ok">✓ Snapshot recorded</div>{% endif %}
+{% if snapshot %}
+<p class="small muted">Latest snapshot ({{ snapshot.captured_at }}): plan={{ snapshot.plan_name }},
+  credits remaining={{ snapshot.usage_credits_remaining }}, reset={{ snapshot.reset_date }}</p>
+{% endif %}
+
+<form method="post" action="/account/snapshot" class="settings">
+  <label>Plan type <input type="text" name="plan_name" placeholder="Pro / Max 5x / Max 20x"></label>
+  <label>Monthly budget value <input type="number" step="any" name="monthly_budget_value"></label>
+  <label>Monthly budget currency <input type="text" name="monthly_budget_currency" value="USD"></label>
+  <label>Usage credits total <input type="number" step="any" name="usage_credits_total"></label>
+  <label>Usage credits remaining <input type="number" step="any" name="usage_credits_remaining"></label>
+  <label>Usage credits used <input type="number" step="any" name="usage_credits_used"></label>
+  <label>Reset date <input type="date" name="reset_date"></label>
+  <label>Notes (e.g. screenshot file path, no image upload)
+    <input type="text" name="notes" placeholder="C:\path\to\screenshot.png (path only)"></label>
+  <button type="submit">Record snapshot</button>
+</form>
+{% endblock %}

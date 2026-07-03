@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Connect official Admin API</h1>
+
+<div class="warn">
+  <strong>No password field. No Claude email/password login here — ever.</strong>
+  Authentication is a single environment variable holding an <em>Admin API key</em>
+  from the Anthropic Console. This app never asks for your Claude account credentials.
+</div>
+
+<h2>Setup</h2>
+<ol>
+  <li>Requires a <strong>Console organization</strong> (Console → Settings → Organization).
+    Per Anthropic's docs, <em>"The Admin API is unavailable for individual accounts"</em> —
+    this generally does not apply to personal Pro/Max subscriptions.</li>
+  <li>Create an Admin API key in the Console (needs Admin/Billing permission on the org).</li>
+  <li>Set the environment variable before starting Claude Code / this app:
+    <pre class="mono">setx ANTHROPIC_ADMIN_API_KEY "sk-ant-admin01-..."</pre>
+    Optional: <code>ANTHROPIC_ORG_ID</code>, <code>ANTHROPIC_WORKSPACE_ID</code>.
+  </li>
+  <li>Restart the dashboard, then click "Test connection" below.</li>
+</ol>
+<p class="small muted">See <code>docs/ANTHROPIC_API_SETUP.md</code> for full detail and troubleshooting.</p>
+
+<h2>Current status</h2>
+<p>API key: <code class="mono">{{ masked_key }}</code>
+  {% if not has_key %}<span class="muted small">(not set)</span>{% endif %}</p>
+
+<form method="post" action="/account/connect/test">
+  <button type="submit">Test connection</button>
+</form>
+
+{% if test_result %}
+<div class="{{ 'ok' if test_result.ok else 'warn' }}" style="margin-top:12px;">
+  <strong>{{ 'Connected' if test_result.ok else 'Not connected' }}</strong><br>
+  {{ test_result.message }}
+</div>
+{% endif %}
+{% endblock %}

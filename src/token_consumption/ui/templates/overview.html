@@ -27,6 +27,26 @@ Their cost is not counted. Add rates in <code>config/pricing.json</code>.</div>
     <div class="v {{ 'danger' if (ov.remaining_eur or 0) < 0 else '' }}">€{{ '%.2f'|format(ov.remaining_eur or 0) }}</div></div>
 </div>
 
+<h2>By data source (this month)</h2>
+<div class="cards">
+  <div class="card">
+    <div class="k">Local Claude Code estimate</div>
+    <div class="v">€{{ '%.2f'|format(ov.month_eur or 0) }}</div>
+    <div class="small muted">confidence: estimated (token-exact × pricing table)</div>
+  </div>
+  <div class="card">
+    <div class="k">Official account/billing</div>
+    <div class="v">{{ '€%.2f'|format(ov.official_eur) if ov.has_official else '—' }}</div>
+    <div class="small muted">{{ 'confidence: exact' if ov.has_official else 'not connected — see /account/connect' }}</div>
+  </div>
+  <div class="card">
+    <div class="k">Manual import</div>
+    <div class="v">{{ '€%.2f'|format(ov.manual_eur) if ov.has_manual else '—' }}</div>
+    <div class="small muted">{{ 'confidence: manually entered' if ov.has_manual else 'no import yet — see /account/import' }}</div>
+  </div>
+</div>
+<p class="small"><a href="/account/reconcile">→ See full reconciliation</a></p>
+
 <p class="muted small">Pricing table v{{ ov.pricing_version }} (updated {{ ov.pricing_updated }}).
 Costs are local estimates from your pricing table; official billing may differ. Token counts are exact.</p>
 {% endblock %}

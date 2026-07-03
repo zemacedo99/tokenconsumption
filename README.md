@@ -133,16 +133,44 @@ powershell -File scripts\install-hooks.ps1 -Apply     # apply
 Adds a statusLine + Stop/SessionEnd hooks. See docs/HOOK_SETUP.md.
 Paste docs/CLAUDE_MEMORY_SNIPPET.md into `~/.claude/CLAUDE.md` for preventive behavior.
 
+## Official account data (if your account supports it)
+
+The Anthropic Admin API requires a Console organization — **generally
+unavailable for personal Pro/Max accounts.** Check yours directly:
+
+```bash
+tc account test                              # live check — never assumes
+tc account sync --from 2026-07-01 --to 2026-07-31   # if connected
+tc account status                            # all source statuses
+```
+
+See [docs/ANTHROPIC_API_SETUP.md](docs/ANTHROPIC_API_SETUP.md).
+
+## Manual account import (fallback for everyone else)
+
+```bash
+tc import-account --file export.csv            # preview only, writes nothing
+tc import-account --file export.csv --yes      # confirm and import
+```
+
+Or use `/account/import` in the dashboard. See [docs/MANUAL_IMPORT.md](docs/MANUAL_IMPORT.md).
+
+## Reconciliation
+
+`/account/reconcile` compares local computed cost against official/manual
+account data and suggests (never auto-applies) a pricing adjustment. See
+[docs/RECONCILIATION.md](docs/RECONCILIATION.md).
+
 ## Diagnose
 
 ```bash
-tc doctor    # checks config, pricing, DB, and Claude Code integration
+tc doctor    # checks config, pricing, DB, Claude Code integration, and account API
 ```
 
 ## Run tests
 
 ```bash
-python -m unittest discover tests      # 40 tests
+python -m unittest discover tests      # 78 tests
 ```
 
 ---
@@ -158,6 +186,12 @@ python -m unittest discover tests      # 40 tests
 - **Official billing may differ** from local computed cost. Token counts are
   exact; cost depends on your pricing table. See docs/ACCOUNT_DATA.md — Pro/Max
   plan-limit progress has no documented local API.
+- **Official Admin API is unavailable for individual accounts** per Anthropic's
+  own documentation — expected for personal Pro/Max subscriptions. `tc account
+  test` gives you a live, authoritative answer for your specific account.
+- **No OS keyring support yet** — the Admin API key is read from the
+  `ANTHROPIC_ADMIN_API_KEY` environment variable only, by design (smaller
+  attack surface, fully auditable).
 - **Local only.** No cloud sync, no external API calls, no web scraping.
 
 ## Folder rename

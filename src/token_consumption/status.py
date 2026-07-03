@@ -5,7 +5,7 @@ Called by the Claude Code statusLine and by `tc status`.
 
 import json
 import os
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from . import config as cfg_mod
@@ -54,6 +54,20 @@ def get_status(session_id: str | None = None, db_path: Path | None = None) -> di
             last_turn = db_mod.get_last_turn(con, session_id)
             last_cost = last_turn["cost_total"] if last_turn else None
 
+            month_cost_source = "local_estimate"
+            if cfg.get("prefer_official_account_costs"):
+                month_start = f"{year_month}-01"
+                next_month = (now_utc.replace(day=28) + timedelta(days=4)).strftime("%Y-%m-01")
+                official = db_mod.get_official_cost_for_period(con, month_start, next_month)
+                if official is not None:
+                    month_cost = official
+                    month_cost_source = "official_account_api"
+                else:
+                    manual = db_mod.get_manual_cost_for_period(con, month_start, next_month)
+                    if manual is not None:
+                        month_cost = manual
+                        month_cost_source = "manual_import"
+
         return {
             "ok": True,
             "account_profile": account,
@@ -62,6 +76,7 @@ def get_status(session_id: str | None = None, db_path: Path | None = None) -> di
             "session_cost_usd": session_cost,
             "today_cost_usd": today_cost,
             "month_cost_usd": month_cost,
+            "month_cost_source": month_cost_source,
             "monthly_budget_usd": monthly_budget if monthly_currency == "USD" else None,
             "monthly_budget_value": monthly_budget,
             "monthly_budget_currency": monthly_currency,
@@ -87,6 +102,7 @@ def _empty_status(cfg: dict, monthly_budget: float, threshold: float) -> dict:
         "session_cost_usd": None,
         "today_cost_usd": None,
         "month_cost_usd": None,
+        "month_cost_source": "local_estimate",
         "monthly_budget_value": monthly_budget,
         "monthly_budget_currency": cfg.get("monthly_budget_currency", "USD"),
         "safety_threshold_value": threshold,

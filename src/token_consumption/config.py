@@ -59,6 +59,7 @@ DEFAULTS: dict[str, Any] = {
     "fx_rates": {"USD_to_EUR": 0.92, "updated_at": "2026-01-01"},
     "data_dir": None,
     "pricing_json_path": None,
+    "prefer_official_account_costs": False,
 }
 
 

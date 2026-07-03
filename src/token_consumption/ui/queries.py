@@ -1,6 +1,6 @@
 """Read-only DB queries for the dashboard. Returns plain dicts, no content fields."""
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from .. import config as cfg_mod
 from .. import db as db_mod
@@ -26,6 +26,9 @@ def overview() -> dict:
 
     table = pricing_mod.get_table()
 
+    month_start = f"{ym}-01"
+    next_month = (now.replace(day=28) + timedelta(days=4)).strftime("%Y-%m-01")
+
     with db_mod.connection() as con:
         month_usd = db_mod.get_monthly_cost(con, ym, account)
         today_usd = db_mod.get_today_cost(con, today, account)
@@ -37,6 +40,8 @@ def overview() -> dict:
             session_usd = db_mod.get_session_cost(con, last_session["session_id"])
         models = [r["model"] for r in con.execute(
             "SELECT DISTINCT model FROM turns WHERE model IS NOT NULL").fetchall()]
+        official_usd = db_mod.get_official_cost_for_period(con, month_start, next_month)
+        manual_usd = db_mod.get_manual_cost_for_period(con, month_start, next_month)
 
     unpriced = [m for m in models if not table.is_known(m)]
     month_eur = _eur(month_usd, cfg)
@@ -54,6 +59,10 @@ def overview() -> dict:
         "unpriced_models": unpriced,
         "pricing_version": table.version,
         "pricing_updated": table._data.get("updated_at", "?"),
+        "official_eur": _eur(official_usd, cfg),
+        "manual_eur": _eur(manual_usd, cfg),
+        "has_official": official_usd is not None,
+        "has_manual": manual_usd is not None,
     }
 
 
@@ -128,3 +137,51 @@ def raw_logs(limit: int = 200) -> list[dict]:
         "cache_w": (r["cache_write_5m_tokens"] or 0) + (r["cache_write_1h_tokens"] or 0),
         "eur": _eur(r["cost_total"], cfg),
     } for r in rows]
+
+
+def account_overview() -> dict:
+    """Status for the /account page: all three sources + latest manual snapshot."""
+    from .. import account as account_mod
+    sources = account_mod.get_data_sources_status()
+    snapshot = account_mod.get_latest_balance_snapshot()
+    return {"sources": sources, "snapshot": snapshot}
+
+
+def reconciliation(months_back: int = 3) -> dict:
+    """
+    Compare local computed cost vs official/manual account cost, per month.
+    Returns rows the reconcile page can render plus a plain-English explanation.
+    """
+    from .. import estimate as estimate_mod
+
+    cfg = cfg_mod.load()
+    now = datetime.now(timezone.utc)
+    rows = []
+    cursor = now.replace(day=1)
+    for _ in range(months_back):
+        start = cursor.strftime("%Y-%m-%d")
+        next_cursor = (cursor.replace(day=28) + timedelta(days=4)).replace(day=1)
+        end = next_cursor.strftime("%Y-%m-%d")
+        calib = estimate_mod.calibration_summary(start, end)
+        rows.append({
+            "period": cursor.strftime("%Y-%m"),
+            "local_eur": _eur(calib["local_cost_usd"], cfg) if calib else _eur(
+                _local_cost_for_period(start, end), cfg),
+            "reference_eur": _eur(calib["reference_cost_usd"], cfg) if calib else None,
+            "reference_source": calib["reference_source"] if calib else None,
+            "diff_pct": calib["diff_pct"] if calib else None,
+            "suggestion": calib["suggestion"] if calib else "No official/manual data for this period yet.",
+        })
+        cursor = cursor.replace(day=1)
+        cursor = (cursor - timedelta(days=1)).replace(day=1)  # step back one month
+
+    return {"rows": rows, "prefer_official": cfg.get("prefer_official_account_costs", False)}
+
+
+def _local_cost_for_period(start: str, end: str) -> float | None:
+    with db_mod.connection() as con:
+        row = con.execute("""
+            SELECT SUM(cost_total) AS s FROM turns
+            WHERE substr(ts,1,10) >= ? AND substr(ts,1,10) < ?
+        """, (start, end)).fetchone()
+    return row["s"] if row else None

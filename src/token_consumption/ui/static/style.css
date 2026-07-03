@@ -29,6 +29,9 @@ h2 { font-size: 16px; margin: 28px 0 10px; color: var(--muted); }
 .card .k { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
 .card .v { font-size: 26px; font-weight: 700; margin-top: 6px; }
 .card .v.danger { color: var(--over); }
+.danger { color: var(--over); }
+.ok-text { color: var(--ok); }
+pre.mono { background: #10131a; border: 1px solid var(--border); border-radius: 6px; padding: 10px 12px; overflow-x: auto; }
 
 .progress-wrap { margin: 18px 0; }
 .progress-label { margin-bottom: 6px; }

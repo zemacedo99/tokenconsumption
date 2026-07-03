@@ -49,12 +49,14 @@ def svg_bar_chart(data: list[dict], label_key: str, value_key: str,
 
 
 def create_app():
-    from fastapi import FastAPI, Request, Form
+    from fastapi import FastAPI, Request, Form, UploadFile, File
     from fastapi.responses import HTMLResponse, RedirectResponse
     from fastapi.staticfiles import StaticFiles
     from fastapi.templating import Jinja2Templates
 
     from . import queries
+    from .. import account as account_mod
+    from ..connectors import anthropic_account
 
     app = FastAPI(title="TokenConsumption")
     templates = Jinja2Templates(directory=str(_TEMPLATES))
@@ -100,6 +102,87 @@ def create_app():
     @app.get("/logs", response_class=HTMLResponse)
     def logs(request: Request):
         return render(request, "logs", rows=queries.raw_logs(200))
+
+    @app.get("/account", response_class=HTMLResponse)
+    def account_page(request: Request):
+        data = queries.account_overview()
+        return render(request, "account", sources=data["sources"], snapshot=data["snapshot"],
+                     saved=request.query_params.get("saved"))
+
+    @app.post("/account/snapshot")
+    def account_snapshot_post(
+        plan_name: str = Form(""),
+        monthly_budget_value: str = Form(""),
+        monthly_budget_currency: str = Form("USD"),
+        usage_credits_total: str = Form(""),
+        usage_credits_remaining: str = Form(""),
+        usage_credits_used: str = Form(""),
+        reset_date: str = Form(""),
+        notes: str = Form(""),
+    ):
+        def _f(v):
+            try:
+                return float(v) if v.strip() else None
+            except ValueError:
+                return None
+        account_mod.record_balance_snapshot(
+            plan_name=plan_name or None,
+            monthly_budget_value=_f(monthly_budget_value),
+            monthly_budget_currency=monthly_budget_currency or None,
+            usage_credits_total=_f(usage_credits_total),
+            usage_credits_remaining=_f(usage_credits_remaining),
+            usage_credits_used=_f(usage_credits_used),
+            reset_date=reset_date or None,
+            notes=notes or None,
+        )
+        return RedirectResponse(url="/account?saved=1", status_code=303)
+
+    @app.get("/account/connect", response_class=HTMLResponse)
+    def account_connect_get(request: Request):
+        key = anthropic_account.get_api_key()
+        return render(request, "account_connect", has_key=bool(key),
+                     masked_key=anthropic_account.mask_key(key), test_result=None)
+
+    @app.post("/account/connect/test", response_class=HTMLResponse)
+    def account_connect_test(request: Request):
+        result = anthropic_account.test_connection()
+        return render(request, "account_connect", has_key=bool(anthropic_account.get_api_key()),
+                     masked_key=result["masked_key"], test_result=result)
+
+    @app.get("/account/import", response_class=HTMLResponse)
+    def account_import_get(request: Request):
+        return render(request, "account_import", preview=None, staged_path=None, error=None)
+
+    @app.post("/account/import/preview", response_class=HTMLResponse)
+    async def account_import_preview(request: Request, upload: UploadFile = File(...)):
+        cfg = cfg_mod.load()
+        upload_dir = Path(cfg_mod._data_dir(cfg)) / "uploads"
+        upload_dir.mkdir(parents=True, exist_ok=True)
+        # Filename is sanitized to its base name only — never trusts client-supplied paths.
+        safe_name = Path(upload.filename or "upload").name
+        dest = upload_dir / safe_name
+        content = await upload.read()
+        dest.write_bytes(content)
+        try:
+            preview = account_mod.preview_manual_import(dest)
+            error = None
+        except Exception as e:
+            preview = None
+            error = str(e)
+        return render(request, "account_import", preview=preview, staged_path=str(dest), error=error)
+
+    @app.post("/account/import/commit", response_class=HTMLResponse)
+    def account_import_commit(request: Request, staged_path: str = Form(...)):
+        path = Path(staged_path)
+        result = account_mod.import_manual(path, dry_run=False) if path.exists() else \
+            {"ok": False, "errors": ["Staged file no longer exists — re-upload."]}
+        return render(request, "account_import", preview=None, staged_path=None,
+                     error=None, commit_result=result)
+
+    @app.get("/account/reconcile", response_class=HTMLResponse)
+    def account_reconcile(request: Request):
+        data = queries.reconciliation(3)
+        return render(request, "account_reconcile", rows=data["rows"], prefer_official=data["prefer_official"])
 
     @app.get("/settings", response_class=HTMLResponse)
     def settings_get(request: Request):

@@ -282,6 +282,14 @@ def ingest_all(
         totals["errors"] += stats["errors"]
         totals["files"] += 1
 
+    try:
+        with db_mod.connection(db_path) as con:
+            status = "ok" if totals["errors"] == 0 else "error"
+            error_msg = f"{totals['errors']} file(s) had errors" if totals["errors"] else None
+            db_mod.record_source_sync(con, "local_claude_code_jsonl", "local", status, error_msg)
+    except Exception:
+        pass  # status tracking must never break the actual import
+
     return totals
 
 

@@ -242,9 +242,82 @@ def cmd_import_account(args: argparse.Namespace) -> int:
     if not path.exists():
         print(f"[tc] File not found: {path}", file=sys.stderr)
         return 1
-    result = account_mod.import_account_export(path, verbose=args.verbose)
-    print(f"[tc] Account import: {result}")
+
+    preview = account_mod.preview_manual_import(path)
+    print(f"[tc] Format: {preview['format']}  |  Rows detected: {preview['total_rows']}")
+    print(f"[tc] Column mapping: {preview['column_mapping']}")
+    for w in preview["warnings"]:
+        print(f"[tc] WARNING: {w}")
+    if preview["sample_rows"]:
+        print("[tc] Sample row:", preview["sample_rows"][0])
+
+    if args.dry_run:
+        print("[tc] --dry-run: no data written.")
+        return 0
+
+    if not args.yes:
+        print("\n[tc] This was a preview only. Re-run with --yes to actually import:")
+        print(f"      tc import-account --file \"{path}\" --yes")
+        return 0
+
+    result = account_mod.import_manual(path, dry_run=False)
+    if not result["ok"]:
+        print(f"[tc] Import failed: {result['errors']}", file=sys.stderr)
+        return 1
+    print(f"[tc] Imported {result['imported']} of {result['total_rows']} rows "
+          f"(source=manual_account_import, confidence=manually_entered).")
     return 0
+
+
+def cmd_account(args: argparse.Namespace) -> int:
+    account_mod = _require_module("account")
+
+    if args.account_action == "test":
+        result = account_mod.test_official_connection()
+        status = "OK" if result["ok"] else "FAILED"
+        print(f"[tc] Official Admin API connection: {status}")
+        print(f"[tc]   key: {result['masked_key']}")
+        print(f"[tc]   {result['message']}")
+        return 0 if result["ok"] else 1
+
+    if args.account_action == "sync":
+        if not args.from_date or not args.to_date:
+            print("[tc] Usage: tc account sync --from YYYY-MM-DD --to YYYY-MM-DD", file=sys.stderr)
+            return 1
+        result = account_mod.sync_official(args.from_date, args.to_date)
+        if not result["ok"]:
+            print(f"[tc] Sync failed: {result['error']}", file=sys.stderr)
+            return 1
+        print(f"[tc] Synced: {result['usage_rows']} usage rows, {result['cost_rows']} cost rows "
+              f"from official API, {result['inserted']} new rows written.")
+        return 0
+
+    if args.account_action == "status":
+        sources = account_mod.get_data_sources_status()
+        print("Data sources:")
+        for s in sources:
+            print(f"  {s['source_name']:28} type={s['source_type']:6} "
+                  f"status={s['last_sync_status']:10} last_sync={s['last_sync_at'] or '-'}")
+            if s.get("last_error_message"):
+                print(f"    error: {s['last_error_message']}")
+        snapshot = account_mod.get_latest_balance_snapshot()
+        if snapshot:
+            print(f"\nLatest manual balance snapshot ({snapshot['captured_at']}):")
+            print(f"  plan={snapshot.get('plan_name')}  "
+                  f"credits_remaining={snapshot.get('usage_credits_remaining')}  "
+                  f"reset={snapshot.get('reset_date')}")
+        else:
+            print("\nNo manual balance snapshot recorded yet.")
+        return 0
+
+    if args.account_action == "sources":
+        sources = account_mod.get_data_sources_status()
+        for s in sources:
+            print(json.dumps(s, indent=2))
+        return 0
+
+    print(f"[tc] Unknown account action: {args.account_action!r}", file=sys.stderr)
+    return 1
 
 
 def cmd_doctor(args: argparse.Namespace) -> int:
@@ -301,6 +374,29 @@ def cmd_doctor(args: argparse.Namespace) -> int:
         print("[claude] global CLAUDE.md contains TokenConsumption section")
     else:
         print("[claude] global CLAUDE.md missing TokenConsumption section")
+
+    # UI dependencies
+    try:
+        import fastapi, uvicorn, jinja2  # noqa: F401
+        print("[ui] fastapi/uvicorn/jinja2 installed")
+    except ImportError as e:
+        print(f"[ui] NOT installed ({e}) — run: pip install -e \".[ui]\"")
+
+    # Official Admin API
+    anthropic_mod = _require_module("connectors.anthropic_account")
+    key = anthropic_mod.get_api_key()
+    if not key:
+        print("[account-api] ANTHROPIC_ADMIN_API_KEY not set. Expected for personal Pro/Max "
+              "accounts — Admin API requires a Console organization. See docs/ANTHROPIC_API_SETUP.md.")
+    else:
+        result = anthropic_mod.test_connection()
+        print(f"[account-api] key={result['masked_key']}  "
+              f"{'CONNECTED' if result['ok'] else 'FAILED: ' + result['message']}")
+
+    # Manual import + Pro/Max usage
+    print("[account-manual] supported via: tc import-account --file <path>")
+    print("[account-plan] Pro/Max Settings>Usage progress has no documented API — "
+          "use 'tc account status' / UI /account to record it manually.")
 
     return 0
 
@@ -370,7 +466,21 @@ def build_parser() -> argparse.ArgumentParser:
     p_acct = sub.add_parser("import-account",
                             help="Manually import an official account/billing export (CSV/JSON)")
     p_acct.add_argument("--file", required=True, metavar="PATH")
+    p_acct.add_argument("--type", choices=["auto", "csv", "json"], default="auto",
+                        help="File format (auto-detected by default)")
+    p_acct.add_argument("--dry-run", action="store_true", help="Preview only, write nothing")
+    p_acct.add_argument("--yes", action="store_true", help="Confirm and actually import")
     p_acct.add_argument("--verbose", "-v", action="store_true")
+
+    # account
+    p_account = sub.add_parser("account", help="Official Anthropic account API integration")
+    account_sub = p_account.add_subparsers(dest="account_action", required=True)
+    account_sub.add_parser("test", help="Test the Admin API connection")
+    p_acc_sync = account_sub.add_parser("sync", help="Fetch official usage/cost reports")
+    p_acc_sync.add_argument("--from", dest="from_date", metavar="YYYY-MM-DD", required=True)
+    p_acc_sync.add_argument("--to", dest="to_date", metavar="YYYY-MM-DD", required=True)
+    account_sub.add_parser("status", help="Show all data source statuses + latest balance snapshot")
+    account_sub.add_parser("sources", help="Show raw data_sources rows as JSON")
 
     # doctor
     sub.add_parser("doctor", help="Diagnose config, pricing, DB, and Claude Code integration")
@@ -392,6 +502,7 @@ def main(argv: list[str] | None = None) -> int:
         "estimate": cmd_estimate,
         "run": cmd_run,
         "import-account": cmd_import_account,
+        "account": cmd_account,
         "doctor": cmd_doctor,
     }
 
