@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block content %}
+{% if not provider %}
+<h1>Provider not found</h1>
+<p><a href="/providers">→ Back to providers</a></p>
+{% else %}
+<h1>{{ provider.display_name }}</h1>
+<p class="muted small">{{ provider.category }}{% if provider.website %} · <a href="{{ provider.website }}">{{ provider.website }}</a>{% endif %}</p>
+
+{% if provider.limitations %}<div class="warn">{{ provider.limitations }}</div>{% endif %}
+
+<h2>Safe connection methods</h2>
+<ul>
+  {% for m in provider.connection_methods %}<li>{{ m }}</li>{% endfor %}
+</ul>
+
+{% if provider.env_var_names %}
+<h2>Environment variables (reference only — never entered in this UI)</h2>
+<ul>
+  {% for v in provider.env_var_names %}<li><code class="mono">{{ v }}</code></li>{% endfor %}
+</ul>
+{% endif %}
+
+{% if provider.setup_note %}<p class="small muted">{{ provider.setup_note }}</p>{% endif %}
+
+<p>
+  <a href="/providers/{{ provider.provider_key }}/connect">→ Connect / setup instructions</a> &nbsp;|&nbsp;
+  <a href="/accounts/add?provider={{ provider.provider_key }}">→ Add account manually</a>
+</p>
+{% endif %}
+{% endblock %}

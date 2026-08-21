@@ -121,7 +121,28 @@ tc estimate --model claude-opus-4-8 --task-type refactor_wide --turns 60 --save
 pip install -e ".[ui]"       # first time only (fastapi, uvicorn, jinja2)
 tc run                       # http://127.0.0.1:8787  (localhost only)
 ```
-Pages: Overview, Trends, Projects, Sessions, Raw logs (metadata only), Settings.
+Pages: Overview, Trends, Projects, Sessions, Raw logs (metadata only),
+Providers, Accounts, Local sources, Workflows (demo), Settings.
+
+## AI Command Center (providers, accounts, local sources)
+
+A small hub for tracking AI tools/subscriptions beyond just Claude Code —
+built-in provider cards (Claude, OpenAI, GitHub Copilot, Gemini, Perplexity,
+Notion AI), manual subscription tracking, and a metadata-only local scan for
+AI tool data on this machine. No scraping, no passwords, no browser cookies —
+see [docs/AI_COMMAND_CENTER.md](docs/AI_COMMAND_CENTER.md).
+
+```bash
+tc providers list                 # built-in + custom providers
+tc accounts add --provider openai --plan "ChatGPT Plus" --monthly-price 20 --currency USD
+tc accounts status                # count + monthly subscription total
+tc sources scan                   # metadata-only local data scan
+```
+
+See also [docs/PROVIDERS.md](docs/PROVIDERS.md),
+[docs/CONNECTED_ACCOUNTS.md](docs/CONNECTED_ACCOUNTS.md),
+[docs/LOCAL_SOURCES.md](docs/LOCAL_SOURCES.md), and
+[docs/ROADMAP.md](docs/ROADMAP.md) for what's deferred.
 
 ## Claude Code integration (global)
 
@@ -170,7 +191,7 @@ tc doctor    # checks config, pricing, DB, Claude Code integration, and account 
 ## Run tests
 
 ```bash
-python -m unittest discover tests      # 78 tests
+python -m unittest discover tests      # 107 tests
 ```
 
 ---

@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Accounts</h1>
+<p class="muted small">Manually tracked AI accounts/subscriptions. No login, no stored passwords.</p>
+
+{% if saved %}<div class="ok">✓ Account added</div>{% endif %}
+
+<div class="cards">
+  <div class="card"><div class="k">Configured accounts</div><div class="v">{{ accounts|length }}</div></div>
+  <div class="card"><div class="k">Monthly subscription total</div><div class="v">€{{ '%.2f'|format(monthly_total_eur or 0) }}</div></div>
+</div>
+
+<table>
+  <tr><th>Provider</th><th>Label</th><th>Plan</th><th class="r">Monthly price</th><th>Status</th><th>Confidence</th></tr>
+  {% for a in accounts %}
+  <tr>
+    <td>{{ a.provider_key }}</td>
+    <td>{{ a.label or '—' }}</td>
+    <td>{{ a.plan_name or '—' }}</td>
+    <td class="r">{{ '%.2f'|format(a.monthly_price) if a.monthly_price is not none else '—' }} {{ a.price_currency }}</td>
+    <td>{{ a.status }}</td>
+    <td class="small muted">{{ a.confidence }}</td>
+  </tr>
+  {% endfor %}
+</table>
+
+<p><a href="/accounts/add">→ Add an account</a></p>
+{% endblock %}

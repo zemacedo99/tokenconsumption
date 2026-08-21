@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Local sources</h1>
+<p class="muted small">
+  Metadata-only scan of well-known local paths — existence, file count, last
+  modified, approximate size. File contents are never opened or read.
+</p>
+<div class="warn">Found on this machine only. May not exist on another computer until a sync feature exists.</div>
+
+<div class="cards">
+  <div class="card"><div class="k">Found</div><div class="v">{{ found }}/{{ total_checked }}</div></div>
+</div>
+
+<table>
+  <tr><th>Tool</th><th>Kind</th><th>Found</th><th class="r">Files</th><th>Last modified</th><th>Path</th></tr>
+  {% for r in results %}
+  <tr>
+    <td>{{ r.tool }}</td>
+    <td>{{ r.kind }}</td>
+    <td class="{{ 'ok-text' if r.exists else 'muted' }}">{{ 'yes' if r.exists else 'no' }}</td>
+    <td class="r">{{ r.file_count }}</td>
+    <td class="small muted">{{ r.last_modified or '—' }}</td>
+    <td class="small mono">{{ r.root_display }}</td>
+  </tr>
+  {% endfor %}
+</table>
+{% endblock %}

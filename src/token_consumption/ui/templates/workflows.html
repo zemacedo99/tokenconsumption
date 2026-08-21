@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Workflows (demo)</h1>
+<div class="warn">
+  Static, rule-based demo only. No workflow is executed and no external model
+  is called — this just suggests which of your registered providers might fit
+  a stated goal, from a small fixed keyword table.
+</div>
+
+<form method="get" action="/workflows" class="settings">
+  <label>Your goal
+    <input type="text" name="goal" value="{{ goal }}" placeholder="e.g. write a blog post, research a topic, refactor some code">
+  </label>
+  <button type="submit">Suggest tools</button>
+</form>
+
+{% if goal %}
+<h2>Suggestions for: "{{ goal }}"</h2>
+{% if suggestions %}
+<div class="cards">
+  {% for p in suggestions %}
+  <div class="card"><div class="k">{{ p.display_name }}</div><div class="v small">{{ p.category }}</div></div>
+  {% endfor %}
+</div>
+{% else %}
+<p class="muted">No rule matched this goal yet — this is a small static demo, not a real recommender.</p>
+{% endif %}
+{% endif %}
+{% endblock %}

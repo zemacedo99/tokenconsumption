@@ -47,6 +47,22 @@ Their cost is not counted. Add rates in <code>config/pricing.json</code>.</div>
 </div>
 <p class="small"><a href="/account/reconcile">→ See full reconciliation</a></p>
 
+<h2>AI Command Center</h2>
+<div class="cards">
+  <div class="card"><div class="k">Manual subscriptions / mo</div><div class="v">€{{ '%.2f'|format(ov.subscriptions_eur or 0) }}</div></div>
+  <div class="card"><div class="k">Configured accounts</div><div class="v">{{ ov.accounts_count }}</div></div>
+  <div class="card"><div class="k">Local sources found</div><div class="v">{{ ov.sources_found }}/{{ ov.sources_checked }}</div></div>
+</div>
+{% if ov.unconfigured_providers %}
+<div class="warn">Unconfigured providers: {{ ov.unconfigured_providers|join(', ') }}. See <a href="/providers">/providers</a>.</div>
+{% endif %}
+<p class="small">
+  <a href="/providers">→ Providers</a> &nbsp;|&nbsp;
+  <a href="/accounts">→ Accounts</a> &nbsp;|&nbsp;
+  <a href="/local-sources">→ Local sources</a> &nbsp;|&nbsp;
+  <a href="/workflows">→ Workflows (demo)</a>
+</p>
+
 <p class="muted small">Pricing table v{{ ov.pricing_version }} (updated {{ ov.pricing_updated }}).
 Costs are local estimates from your pricing table; official billing may differ. Token counts are exact.</p>
 {% endblock %}

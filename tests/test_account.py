@@ -48,11 +48,13 @@ class TestSchemaMigration(unittest.TestCase):
             v = con.execute("SELECT value FROM meta WHERE key='schema_version'").fetchone()
         self.assertEqual(int(v["value"]), db_mod.SCHEMA_VERSION)
 
-    def test_existing_v1_db_migrates_to_v2(self):
+    def test_existing_v1_db_migrates_to_current(self):
         """
         Simulate a pre-existing v1 database: the real v1 DDL (turns/estimates/
-        agg_daily/meta — unchanged between v1 and v2) with schema_version=1,
-        but none of the new account tables yet.
+        agg_daily/meta — unchanged since v1) with schema_version=1, but none
+        of the later account/provider/account tables yet. init_db() must walk
+        it forward to the current SCHEMA_VERSION, gaining every table added
+        since (v2's account tables, v3's providers/accounts hub tables).
         """
         v1_ddl = db_mod.DDL.split("-- ── account_usage_reports")[0]
         con = sqlite3.connect(self.db_path)
@@ -67,7 +69,9 @@ class TestSchemaMigration(unittest.TestCase):
                 "SELECT name FROM sqlite_master WHERE type='table'").fetchall()}
             v = con2.execute("SELECT value FROM meta WHERE key='schema_version'").fetchone()
         self.assertIn("account_usage_reports", tables)
-        self.assertEqual(int(v["value"]), 2)
+        self.assertIn("providers", tables)
+        self.assertIn("accounts", tables)
+        self.assertEqual(int(v["value"]), db_mod.SCHEMA_VERSION)
 
     def test_insert_and_dedupe_with_null_workspace(self):
         """Rows with NULL workspace_id/model must still dedupe (COALESCE index)."""

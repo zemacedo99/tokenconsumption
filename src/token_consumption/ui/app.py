@@ -56,6 +56,7 @@ def create_app():
 
     from . import queries
     from .. import account as account_mod
+    from .. import accounts as accounts_mod
     from ..connectors import anthropic_account
 
     app = FastAPI(title="TokenConsumption")
@@ -183,6 +184,64 @@ def create_app():
     def account_reconcile(request: Request):
         data = queries.reconciliation(3)
         return render(request, "account_reconcile", rows=data["rows"], prefer_official=data["prefer_official"])
+
+    @app.get("/providers", response_class=HTMLResponse)
+    def providers_list_page(request: Request):
+        return render(request, "providers", providers=queries.providers_list())
+
+    @app.get("/providers/{provider_key}", response_class=HTMLResponse)
+    def provider_detail_page(request: Request, provider_key: str):
+        return render(request, "provider_detail", provider=queries.provider_detail(provider_key))
+
+    @app.get("/providers/{provider_key}/connect", response_class=HTMLResponse)
+    def provider_connect_page(request: Request, provider_key: str):
+        return render(request, "provider_connect", provider=queries.provider_detail(provider_key))
+
+    @app.get("/accounts", response_class=HTMLResponse)
+    def ai_accounts_page(request: Request):
+        data = queries.accounts_overview()
+        return render(request, "ai_accounts", accounts=data["accounts"],
+                     monthly_total_eur=data["monthly_total_eur"],
+                     saved=request.query_params.get("saved"))
+
+    @app.get("/accounts/add", response_class=HTMLResponse)
+    def ai_accounts_add_get(request: Request):
+        return render(request, "ai_accounts_add", providers=queries.providers_list(),
+                     selected_provider=request.query_params.get("provider"))
+
+    @app.post("/accounts/add")
+    def ai_accounts_add_post(
+        provider: str = Form(...),
+        label: str = Form(""),
+        plan: str = Form(""),
+        monthly_price: str = Form(""),
+        currency: str = Form("EUR"),
+        status: str = Form("manual"),
+        notes: str = Form(""),
+    ):
+        def _f(v):
+            try:
+                return float(v) if v.strip() else None
+            except ValueError:
+                return None
+        accounts_mod.add_account(
+            provider_key=provider, label=label or None, plan_name=plan or None,
+            monthly_price=_f(monthly_price), price_currency=currency or "EUR",
+            status=status or "manual", notes=notes or None,
+        )
+        return RedirectResponse(url="/accounts?saved=1", status_code=303)
+
+    @app.get("/local-sources", response_class=HTMLResponse)
+    def local_sources_page(request: Request):
+        data = queries.sources_scan()
+        return render(request, "local_sources", results=data["results"],
+                     found=data["found"], total_checked=data["total_checked"])
+
+    @app.get("/workflows", response_class=HTMLResponse)
+    def workflows_page(request: Request):
+        goal = request.query_params.get("goal", "").strip()
+        suggestions = queries.workflow_suggestions(goal) if goal else []
+        return render(request, "workflows", goal=goal, suggestions=suggestions)
 
     @app.get("/settings", response_class=HTMLResponse)
     def settings_get(request: Request):

@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Add account</h1>
+<p class="muted small">Manual entry only — plan and price as you know them. No login, no password.</p>
+
+<form method="post" action="/accounts/add" class="settings">
+  <label>Provider
+    <select name="provider">
+      {% for p in providers %}
+      <option value="{{ p.provider_key }}" {{ 'selected' if p.provider_key==selected_provider else '' }}>{{ p.display_name }}</option>
+      {% endfor %}
+    </select>
+  </label>
+  <label>Label (optional) <input type="text" name="label" placeholder="e.g. work account"></label>
+  <label>Plan name <input type="text" name="plan"></label>
+  <label>Monthly price <input type="number" step="any" name="monthly_price"></label>
+  <label>Currency <input type="text" name="currency" value="EUR"></label>
+  <label>Status
+    <select name="status">
+      <option value="manual">manual</option>
+      <option value="connected">connected</option>
+      <option value="unsupported">unsupported</option>
+    </select>
+  </label>
+  <label>Notes <input type="text" name="notes"></label>
+  <button type="submit">Add account</button>
+</form>
+{% endblock %}

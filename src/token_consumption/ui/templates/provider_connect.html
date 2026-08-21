@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block content %}
+{% if not provider %}
+<h1>Provider not found</h1>
+<p><a href="/providers">→ Back to providers</a></p>
+{% else %}
+<h1>Connect: {{ provider.display_name }}</h1>
+<div class="warn">
+  <strong>No password field. No provider email/password login here — ever.</strong>
+  This app never scrapes provider websites and never reads browser cookies,
+  localStorage, or session tokens.
+</div>
+
+{% if provider.provider_key == 'anthropic' %}
+<p>Claude/Anthropic already has a dedicated flow —
+  see <a href="/account/connect">/account/connect</a> (Admin API) and
+  <a href="/account/import">/account/import</a> (manual export).</p>
+{% else %}
+<h2>Setup (reference only)</h2>
+{% if provider.env_var_names %}
+<p>If this provider exposes an API you use elsewhere, its documented key env var(s) are:</p>
+<ul>{% for v in provider.env_var_names %}<li><code class="mono">{{ v }}</code></li>{% endfor %}</ul>
+<p class="small muted">TokenConsumption never asks you to paste a key into this UI — set it in your OS environment if/when you use it.</p>
+{% else %}
+<p class="small muted">No documented API for this provider. Use manual entry instead.</p>
+{% endif %}
+<p><a href="/accounts/add?provider={{ provider.provider_key }}">→ Record this account manually</a></p>
+{% endif %}
+{% endif %}
+{% endblock %}

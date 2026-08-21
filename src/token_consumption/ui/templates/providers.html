@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Providers</h1>
+<p class="muted small">
+  Built-in and custom AI tool/provider cards. Connection methods are always
+  safe: environment variables for API keys (reference only), manual import of
+  exports, or manual subscription entry. No provider login, no scraping, no
+  browser cookies are ever used.
+</p>
+
+<div class="cards">
+  {% for p in providers %}
+  <div class="card">
+    <div class="k">{{ p.display_name }}</div>
+    <div class="v small">{{ p.category }}</div>
+    <div class="small {{ 'ok-text' if p.status=='connected' else ('muted' if p.status in ('manual','unconfigured') else 'danger') }}">
+      {{ p.status }}
+    </div>
+    <div class="small muted">methods: {{ p.connection_methods|join(', ') }}</div>
+    <div class="small"><a href="/providers/{{ p.provider_key }}">→ details</a></div>
+  </div>
+  {% endfor %}
+</div>
+
+<p class="small"><a href="/accounts/add">→ Add an account for one of these providers</a></p>
+{% endblock %}

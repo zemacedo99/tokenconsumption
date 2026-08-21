@@ -320,6 +320,89 @@ def cmd_account(args: argparse.Namespace) -> int:
     return 1
 
 
+def cmd_providers(args: argparse.Namespace) -> int:
+    providers_mod = _require_module("providers")
+
+    if args.providers_action == "list":
+        for p in providers_mod.list_providers():
+            tag = "custom" if p["is_custom"] else "built-in"
+            print(f"[{tag:8}] {p['provider_key']:16} {p['display_name']:30} "
+                  f"methods={','.join(p['connection_methods'])}")
+        return 0
+
+    if args.providers_action == "status":
+        for p in providers_mod.list_providers():
+            status = providers_mod.provider_status(p["provider_key"])
+            print(f"{p['provider_key']:16} status={status}")
+        return 0
+
+    if args.providers_action == "add":
+        try:
+            providers_mod.add_custom_provider(
+                provider_key=args.key, display_name=args.name, category=args.category,
+                website=args.website, connection_methods=["manual_entry"],
+                env_var_names=args.env_var or [], limitations=args.limitations,
+            )
+        except ValueError as e:
+            print(f"[tc] Error: {e}", file=sys.stderr)
+            return 1
+        print(f"[tc] Added custom provider: {args.key}")
+        return 0
+
+    print(f"[tc] Unknown providers action: {args.providers_action!r}", file=sys.stderr)
+    return 1
+
+
+def cmd_accounts(args: argparse.Namespace) -> int:
+    accounts_mod = _require_module("accounts")
+
+    if args.accounts_action == "list":
+        for a in accounts_mod.list_accounts():
+            price = f"{a['monthly_price']} {a['price_currency']}" if a["monthly_price"] is not None else "—"
+            print(f"[{a['id']}] {a['provider_key']:16} label={(a['label'] or '-'):16} "
+                  f"plan={(a['plan_name'] or '-'):16} price={price:12} status={a['status']}")
+        return 0
+
+    if args.accounts_action == "add":
+        accounts_mod.add_account(
+            provider_key=args.provider, label=args.label, plan_name=args.plan,
+            monthly_price=args.monthly_price, price_currency=args.currency,
+            status=args.status or "manual", notes=args.notes,
+        )
+        print(f"[tc] Added account for provider={args.provider}")
+        return 0
+
+    if args.accounts_action == "status":
+        summary = accounts_mod.account_status_summary()
+        print(f"Accounts configured: {summary['count']}")
+        print(f"Monthly subscription total: ~EUR {summary['monthly_total_eur']:.2f}")
+        return 0
+
+    print(f"[tc] Unknown accounts action: {args.accounts_action!r}", file=sys.stderr)
+    return 1
+
+
+def cmd_sources(args: argparse.Namespace) -> int:
+    sources_mod = _require_module("sources")
+
+    if args.sources_action in ("scan", "list"):
+        summary = sources_mod.scan_summary()
+        for r in summary["results"]:
+            mark = "FOUND" if r["exists"] else "-----"
+            print(f"[{mark}] {r['tool']:24} {r['kind']:28} files={r['file_count']:>5}  {r['root_display']}")
+        print(f"\n{summary['found']}/{summary['total_checked']} local sources found "
+              f"(metadata-only; machine-local — file contents are never read).")
+        return 0
+
+    if args.sources_action == "status":
+        summary = sources_mod.scan_summary()
+        print(f"Local sources found: {summary['found']}/{summary['total_checked']} (metadata-only)")
+        return 0
+
+    print(f"[tc] Unknown sources action: {args.sources_action!r}", file=sys.stderr)
+    return 1
+
+
 def cmd_doctor(args: argparse.Namespace) -> int:
     cfg_mod = _require_module("config")
     pricing_mod = _require_module("pricing")
@@ -397,6 +480,27 @@ def cmd_doctor(args: argparse.Namespace) -> int:
     print("[account-manual] supported via: tc import-account --file <path>")
     print("[account-plan] Pro/Max Settings>Usage progress has no documented API — "
           "use 'tc account status' / UI /account to record it manually.")
+
+    # AI Command Center: providers / accounts / local sources
+    providers_mod = _require_module("providers")
+    accounts_mod = _require_module("accounts")
+    sources_mod = _require_module("sources")
+
+    all_providers = providers_mod.list_providers()
+    custom_count = sum(1 for p in all_providers if p["is_custom"])
+    print(f"[providers] {len(all_providers) - custom_count} built-in + {custom_count} custom registered")
+    unsupported = [p["provider_key"] for p in all_providers
+                  if providers_mod.provider_status(p["provider_key"]) == "unsupported"]
+    if unsupported:
+        print(f"[providers] no safe connection method available for: {', '.join(unsupported)}")
+
+    acct_summary = accounts_mod.account_status_summary()
+    print(f"[accounts] {acct_summary['count']} configured; "
+          f"monthly subscription total ~ EUR {acct_summary['monthly_total_eur']:.2f}")
+
+    src_summary = sources_mod.scan_summary()
+    print(f"[sources] {src_summary['found']}/{src_summary['total_checked']} local sources found "
+          f"(metadata-only, machine-local)")
 
     return 0
 
@@ -482,6 +586,41 @@ def build_parser() -> argparse.ArgumentParser:
     account_sub.add_parser("status", help="Show all data source statuses + latest balance snapshot")
     account_sub.add_parser("sources", help="Show raw data_sources rows as JSON")
 
+    # providers
+    p_providers = sub.add_parser("providers", help="AI provider registry (built-in + custom)")
+    providers_sub = p_providers.add_subparsers(dest="providers_action", required=True)
+    providers_sub.add_parser("list", help="List built-in + custom providers")
+    providers_sub.add_parser("status", help="Show connection status per provider")
+    p_prov_add = providers_sub.add_parser("add", help="Add a custom provider")
+    p_prov_add.add_argument("--key", required=True, help="Unique provider key")
+    p_prov_add.add_argument("--name", required=True, help="Display name")
+    p_prov_add.add_argument("--category", default="custom")
+    p_prov_add.add_argument("--website", default="")
+    p_prov_add.add_argument("--env-var", action="append", dest="env_var",
+                            help="Env var name referenced for this provider (repeatable, reference only)")
+    p_prov_add.add_argument("--limitations", default="")
+
+    # accounts
+    p_accounts = sub.add_parser("accounts", help="Configured AI accounts/subscriptions (manual entry)")
+    accounts_sub = p_accounts.add_subparsers(dest="accounts_action", required=True)
+    accounts_sub.add_parser("list", help="List configured accounts")
+    accounts_sub.add_parser("status", help="Show account count + monthly subscription total")
+    p_acct_add = accounts_sub.add_parser("add", help="Add a manual account/subscription entry")
+    p_acct_add.add_argument("--provider", required=True, help="Provider key (see 'tc providers list')")
+    p_acct_add.add_argument("--label", default=None)
+    p_acct_add.add_argument("--plan", dest="plan", default=None)
+    p_acct_add.add_argument("--monthly-price", dest="monthly_price", type=float, default=None)
+    p_acct_add.add_argument("--currency", default="EUR")
+    p_acct_add.add_argument("--status", default="manual")
+    p_acct_add.add_argument("--notes", default=None)
+
+    # sources
+    p_sources = sub.add_parser("sources", help="Metadata-only local AI data source scanner")
+    sources_sub = p_sources.add_subparsers(dest="sources_action", required=True)
+    sources_sub.add_parser("scan", help="Scan known local paths (metadata only)")
+    sources_sub.add_parser("list", help="Alias for scan")
+    sources_sub.add_parser("status", help="Show found/checked summary")
+
     # doctor
     sub.add_parser("doctor", help="Diagnose config, pricing, DB, and Claude Code integration")
 
@@ -503,6 +642,9 @@ def main(argv: list[str] | None = None) -> int:
         "run": cmd_run,
         "import-account": cmd_import_account,
         "account": cmd_account,
+        "providers": cmd_providers,
+        "accounts": cmd_accounts,
+        "sources": cmd_sources,
         "doctor": cmd_doctor,
     }
 

@@ -47,6 +47,17 @@ def overview() -> dict:
     month_eur = _eur(month_usd, cfg)
     pct = (month_eur / budget_eur * 100) if (month_eur is not None and budget_eur) else 0.0
 
+    from .. import accounts as accounts_mod
+    from .. import sources as sources_mod
+    from .. import providers as providers_mod
+
+    acct_summary = accounts_mod.account_status_summary()
+    src_summary = sources_mod.scan_summary()
+    unconfigured_providers = [
+        p["display_name"] for p in providers_mod.list_providers()
+        if providers_mod.provider_status(p["provider_key"]) == "unconfigured"
+    ]
+
     return {
         "account": account,
         "today_eur": _eur(today_usd, cfg),
@@ -63,6 +74,11 @@ def overview() -> dict:
         "manual_eur": _eur(manual_usd, cfg),
         "has_official": official_usd is not None,
         "has_manual": manual_usd is not None,
+        "subscriptions_eur": acct_summary["monthly_total_eur"],
+        "accounts_count": acct_summary["count"],
+        "sources_found": src_summary["found"],
+        "sources_checked": src_summary["total_checked"],
+        "unconfigured_providers": unconfigured_providers,
     }
 
 
@@ -185,3 +201,63 @@ def _local_cost_for_period(start: str, end: str) -> float | None:
             WHERE substr(ts,1,10) >= ? AND substr(ts,1,10) < ?
         """, (start, end)).fetchone()
     return row["s"] if row else None
+
+
+# ── AI Command Center: providers / accounts / local sources ──────────────────
+
+def providers_list() -> list[dict]:
+    from .. import providers as providers_mod
+    out = []
+    for p in providers_mod.list_providers():
+        p = dict(p)
+        p["status"] = providers_mod.provider_status(p["provider_key"])
+        out.append(p)
+    return out
+
+
+def provider_detail(key: str) -> dict | None:
+    from .. import providers as providers_mod
+    p = providers_mod.get_provider(key)
+    if p is None:
+        return None
+    p = dict(p)
+    p["status"] = providers_mod.provider_status(key)
+    return p
+
+
+def accounts_overview() -> dict:
+    from .. import accounts as accounts_mod
+    return {
+        "accounts": accounts_mod.list_accounts(),
+        "monthly_total_eur": accounts_mod.monthly_subscription_total_eur(),
+    }
+
+
+def sources_scan() -> dict:
+    from .. import sources as sources_mod
+    return sources_mod.scan_summary()
+
+
+# Static rule-based demo only — keyword match against provider categories.
+# No external model call is ever made here.
+_WORKFLOW_RULES = [
+    (("code", "refactor", "bug", "programming", "pull request", "pr "),
+     ["anthropic", "github_copilot", "openai"]),
+    (("write", "email", "draft", "essay", "blog", "post"), ["anthropic", "openai"]),
+    (("search", "research", "find sources", "cite", "fact"), ["perplexity"]),
+    (("notes", "docs", "wiki", "meeting"), ["notion_ai"]),
+    (("chat", "assistant", "question", "ask"), ["anthropic", "openai", "google_gemini"]),
+]
+
+
+def workflow_suggestions(goal: str) -> list[dict]:
+    from .. import providers as providers_mod
+    goal_lower = goal.lower()
+    matched_keys: list[str] = []
+    for keywords, keys in _WORKFLOW_RULES:
+        if any(kw in goal_lower for kw in keywords):
+            for k in keys:
+                if k not in matched_keys:
+                    matched_keys.append(k)
+    all_providers = {p["provider_key"]: p for p in providers_mod.list_providers()}
+    return [all_providers[k] for k in matched_keys if k in all_providers]

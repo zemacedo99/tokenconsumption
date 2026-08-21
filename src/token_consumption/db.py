@@ -6,7 +6,7 @@ from pathlib import Path
 
 from . import config as cfg_mod
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 DDL = """
 -- ── turns ────────────────────────────────────────────────────────────────────
@@ -165,6 +165,47 @@ CREATE TABLE IF NOT EXISTS data_sources (
     last_sync_status    TEXT,                  -- ok | error | never_run
     last_error_message  TEXT
 );
+
+-- ── providers ────────────────────────────────────────────────────────────────
+-- Custom (user-added) AI providers only. Built-in providers (Claude, OpenAI,
+-- Copilot, Gemini, Perplexity, Notion AI) are code-defined in providers.py and
+-- never stored here.
+CREATE TABLE IF NOT EXISTS providers (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    provider_key        TEXT NOT NULL UNIQUE,
+    display_name        TEXT NOT NULL,
+    category            TEXT,
+    website             TEXT,
+    connection_methods  TEXT,            -- JSON array, e.g. ["manual_entry"]
+    env_var_names       TEXT,            -- JSON array, reference only — never a value
+    limitations         TEXT,
+    is_custom           INTEGER NOT NULL DEFAULT 1,
+    created_at          TEXT NOT NULL
+);
+
+-- ── accounts ─────────────────────────────────────────────────────────────────
+-- User-configured AI accounts/subscriptions. Manual entry only in this phase —
+-- no login, no password, no API key value is ever stored in this table.
+CREATE TABLE IF NOT EXISTS accounts (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    provider_key        TEXT NOT NULL,
+    label               TEXT,
+    plan_name           TEXT,
+    monthly_price       REAL,
+    price_currency      TEXT NOT NULL DEFAULT 'EUR',
+    billing_period      TEXT NOT NULL DEFAULT 'monthly',
+    status              TEXT NOT NULL DEFAULT 'manual',  -- connected|manual|unsupported|unknown
+    connection_method   TEXT,            -- env_var|manual_import|manual_entry
+    last_sync_at        TEXT,
+    confidence          TEXT NOT NULL DEFAULT 'manually_entered',
+    notes               TEXT,
+    created_at          TEXT NOT NULL
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS ux_accounts_dedupe ON accounts(
+    provider_key, COALESCE(label,'')
+);
+CREATE INDEX IF NOT EXISTS idx_accounts_provider ON accounts(provider_key);
 """
 
 MIGRATIONS = {
@@ -175,6 +216,9 @@ MIGRATIONS = {
     # CREATE TABLE IF NOT EXISTS in the DDL above already applies these to
     # existing databases idempotently, so this migration is a no-op marker.
     2: "SELECT 1;",
+    # v2 → v3: providers, accounts (AI Command Center hub). Also CREATE TABLE
+    # IF NOT EXISTS in the DDL above — no-op marker.
+    3: "SELECT 1;",
 }
 
 
@@ -368,3 +412,47 @@ def get_latest_balance_snapshot(con: sqlite3.Connection) -> sqlite3.Row | None:
     return con.execute("""
         SELECT * FROM account_balance_snapshots ORDER BY captured_at DESC LIMIT 1
     """).fetchone()
+
+
+# ── providers helpers (custom providers only; built-ins are code-defined) ────
+
+def insert_provider(con: sqlite3.Connection, row: dict) -> bool:
+    """Insert one custom provider. Returns True if a new row was added."""
+    before = con.total_changes
+    con.execute("""
+        INSERT OR IGNORE INTO providers (
+            provider_key, display_name, category, website,
+            connection_methods, env_var_names, limitations, is_custom, created_at
+        ) VALUES (:provider_key, :display_name, :category, :website,
+            :connection_methods, :env_var_names, :limitations, :is_custom, :created_at)
+    """, row)
+    return con.total_changes > before
+
+
+def get_custom_providers(con: sqlite3.Connection) -> list[sqlite3.Row]:
+    return con.execute("SELECT * FROM providers ORDER BY provider_key").fetchall()
+
+
+# ── accounts helpers ──────────────────────────────────────────────────────────
+
+def insert_account(con: sqlite3.Connection, row: dict) -> bool:
+    """Insert one configured account. Returns True if a new row was added."""
+    before = con.total_changes
+    con.execute("""
+        INSERT OR IGNORE INTO accounts (
+            provider_key, label, plan_name, monthly_price, price_currency,
+            billing_period, status, connection_method, last_sync_at,
+            confidence, notes, created_at
+        ) VALUES (:provider_key, :label, :plan_name, :monthly_price, :price_currency,
+            :billing_period, :status, :connection_method, :last_sync_at,
+            :confidence, :notes, :created_at)
+    """, row)
+    return con.total_changes > before
+
+
+def get_accounts(con: sqlite3.Connection) -> list[sqlite3.Row]:
+    return con.execute("SELECT * FROM accounts ORDER BY provider_key, label").fetchall()
+
+
+def get_account_by_id(con: sqlite3.Connection, account_id: int) -> sqlite3.Row | None:
+    return con.execute("SELECT * FROM accounts WHERE id=?", (account_id,)).fetchone()
