@@ -154,6 +154,22 @@ powershell -File scripts\install-hooks.ps1 -Apply     # apply
 Adds a statusLine + Stop/SessionEnd hooks. See docs/HOOK_SETUP.md.
 Paste docs/CLAUDE_MEMORY_SNIPPET.md into `~/.claude/CLAUDE.md` for preventive behavior.
 
+## Claude attribution (no co-author lines)
+
+The repo's `CLAUDE.md` tells Claude Code not to add `Co-Authored-By: Claude` or
+"Generated with Claude Code" lines to commits and PRs in this repository.
+
+For tool-level enforcement, run once after cloning:
+
+```powershell
+.\scripts\setup-claude.ps1
+```
+
+This merges `"attribution": { "commit": "", "pr": "" }` into your own user-level
+`~/.claude/settings.json` (backing it up first, keeping all other settings). That
+file is yours, not part of the repo, so it is not committed to Git. Use `-DryRun`
+to preview without writing.
+
 ## Official account data (if your account supports it)
 
 The Anthropic Admin API requires a Console organization — **generally
